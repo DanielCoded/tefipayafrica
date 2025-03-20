@@ -6,11 +6,11 @@ import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Loader2 } from "lucide-react"
 
-// Create a Supabase client with the service role key for admin operations
+// Create a Supabase client with the anon key for client-side operations
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ""
-const supabaseServiceKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "" // We use anon key on client side
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ""
 
-const supabaseClient = createClient(supabaseUrl, supabaseServiceKey)
+const supabaseClient = createClient(supabaseUrl, supabaseAnonKey)
 
 export default function SetupPage() {
   const [isLoading, setIsLoading] = useState(false)
@@ -21,55 +21,14 @@ export default function SetupPage() {
     setResult(null)
 
     try {
-      // Create the waitlist table directly with SQL
+      // Check if the table exists
       const { error } = await supabaseClient.from("waitlist").select("count").limit(1)
 
       if (error && error.code === "42P01") {
-        // Table doesn't exist, so create it
-        const createTableQuery = `
-          CREATE TABLE public.waitlist (
-            id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-            name TEXT NOT NULL,
-            email TEXT NOT NULL UNIQUE,
-            created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-          );
-          
-          -- Set up RLS (Row Level Security)
-          ALTER TABLE public.waitlist ENABLE ROW LEVEL SECURITY;
-          
-          -- Create policy for inserting (anyone can insert)
-          CREATE POLICY "Allow anyone to insert to waitlist" 
-            ON public.waitlist 
-            FOR INSERT 
-            TO anon, authenticated 
-            WITH CHECK (true);
-          
-          -- Create policy for selecting (anyone can view)
-          CREATE POLICY "Allow anyone to select from waitlist" 
-            ON public.waitlist 
-            FOR SELECT 
-            TO anon, authenticated 
-            USING (true);
-        `
-
-        // We'll use fetch to call our API endpoint that will create the table
-        const response = await fetch("/api/setup-database", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ sql: createTableQuery }),
-        })
-
-        const data = await response.json()
-
-        if (!response.ok) {
-          throw new Error(data.error || "Failed to create table")
-        }
-
+        // Table doesn't exist, show manual instructions
         setResult({
-          success: true,
-          message: "Database setup completed successfully! The waitlist table has been created.",
+          success: false,
+          message: "The waitlist table doesn't exist. Please run the SQL script manually in your Supabase SQL Editor.",
         })
       } else if (error) {
         console.error("Error checking table:", error)
@@ -108,7 +67,7 @@ export default function SetupPage() {
         <h2 className="text-xl font-semibold mb-4">Database Setup</h2>
         <p className="mb-4">
           This page will help you set up the necessary database tables for the TefiPay waitlist. Click the button below
-          to create the waitlist table in your Supabase database.
+          to check if the waitlist table exists in your Supabase database.
         </p>
 
         <div className="mb-6">
@@ -116,10 +75,10 @@ export default function SetupPage() {
             {isLoading ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Setting up...
+                Checking database...
               </>
             ) : (
-              "Set Up Database"
+              "Check Database"
             )}
           </Button>
         </div>
@@ -129,7 +88,7 @@ export default function SetupPage() {
             className={`p-4 rounded-md ${
               result.success
                 ? "bg-green-50 text-green-800 border border-green-200"
-                : "bg-red-50 text-red-800 border border-red-200"
+                : "bg-yellow-50 text-yellow-800 border border-yellow-200"
             }`}
           >
             <p>{result.message}</p>
@@ -139,15 +98,12 @@ export default function SetupPage() {
 
       <div className="bg-white shadow-md rounded-lg p-6">
         <h2 className="text-xl font-semibold mb-4">Manual Setup Instructions</h2>
-        <p className="mb-4">
-          If the automatic setup doesn't work, you can manually set up your database by running the following SQL in
-          your Supabase SQL Editor:
-        </p>
+        <p className="mb-4">To set up your database, run the following SQL in your Supabase SQL Editor:</p>
 
         <div className="bg-gray-50 p-4 rounded-md overflow-x-auto mb-4">
           <pre className="text-sm text-gray-800">
             {`-- Create the waitlist table
-CREATE TABLE public.waitlist (
+CREATE TABLE IF NOT EXISTS public.waitlist (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   name TEXT NOT NULL,
   email TEXT NOT NULL UNIQUE,

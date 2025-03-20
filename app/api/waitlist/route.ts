@@ -1,16 +1,15 @@
 import { NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 
-// Create a Supabase client with the service role key for server-side operations
-// This bypasses RLS policies
+// Create a Supabase client with the anon key for server-side operations
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ""
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || ""
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ""
 
-if (!supabaseUrl || !supabaseServiceKey) {
-  console.warn("Missing Supabase environment variables for admin operations")
+if (!supabaseUrl || !supabaseAnonKey) {
+  console.warn("Missing Supabase environment variables")
 }
 
-const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey)
+const supabase = createClient(supabaseUrl, supabaseAnonKey)
 
 export async function POST(request: Request) {
   try {
@@ -27,7 +26,7 @@ export async function POST(request: Request) {
     }
 
     // Check if the waitlist table exists
-    const { error: tableCheckError } = await supabaseAdmin.from("waitlist").select("count").limit(1)
+    const { error: tableCheckError } = await supabase.from("waitlist").select("count").limit(1)
 
     if (tableCheckError && tableCheckError.code === "42P01") {
       // Table doesn't exist
@@ -41,7 +40,7 @@ export async function POST(request: Request) {
     }
 
     // Check if email already exists
-    const { data: existingUser, error: checkError } = await supabaseAdmin
+    const { data: existingUser, error: checkError } = await supabase
       .from("waitlist")
       .select("email")
       .eq("email", email)
@@ -57,7 +56,7 @@ export async function POST(request: Request) {
     }
 
     // Insert new waitlist entry
-    const { data, error } = await supabaseAdmin.from("waitlist").insert([{ name, email }]).select()
+    const { data, error } = await supabase.from("waitlist").insert([{ name, email }]).select()
 
     if (error) {
       console.error("Supabase error:", error)
